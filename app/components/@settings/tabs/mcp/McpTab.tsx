@@ -1,30 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { classNames } from '~/utils/classNames';
-import type { MCPConfig } from '~/lib/services/mcpService';
 import { toast } from 'react-toastify';
 import { useMCPStore } from '~/lib/stores/mcp';
 import McpServerList from '~/components/@settings/tabs/mcp/McpServerList';
-
-const EXAMPLE_MCP_CONFIG: MCPConfig = {
-  mcpServers: {
-    everything: {
-      type: 'stdio',
-      command: 'npx',
-      args: ['-y', '@modelcontextprotocol/server-everything'],
-    },
-    deepwiki: {
-      type: 'streamable-http',
-      url: 'https://mcp.deepwiki.com/mcp',
-    },
-    'local-sse': {
-      type: 'sse',
-      url: 'http://localhost:8000/sse',
-      headers: {
-        Authorization: 'Bearer mytoken123',
-      },
-    },
-  },
-};
 
 export default function McpTab() {
   const settings = useMCPStore((state) => state.settings);
@@ -35,7 +13,6 @@ export default function McpTab() {
   const checkServersAvailabilities = useMCPStore((state) => state.checkServersAvailabilities);
 
   const [isSaving, setIsSaving] = useState(false);
-  const [mcpConfigText, setMCPConfigText] = useState('');
   const [maxLLMSteps, setMaxLLMSteps] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const [isCheckingServers, setIsCheckingServers] = useState(false);
@@ -45,64 +22,38 @@ export default function McpTab() {
     if (!isInitialized) {
       initialize().catch((err) => {
         setError(`Failed to initialize MCP settings: ${err instanceof Error ? err.message : String(err)}`);
-        toast.error('Failed to load MCP configuration');
+        toast.error('Failed to load MCP settings');
       });
     }
-  }, [isInitialized]);
+  }, [isInitialized, initialize]);
 
   useEffect(() => {
-    setMCPConfigText(JSON.stringify(settings.mcpConfig, null, 2));
     setMaxLLMSteps(settings.maxLLMSteps);
     setError(null);
   }, [settings]);
-
-  const parsedConfig = useMemo(() => {
-    try {
-      setError(null);
-      return JSON.parse(mcpConfigText) as MCPConfig;
-    } catch (e) {
-      setError(`Invalid JSON format: ${e instanceof Error ? e.message : String(e)}`);
-      return null;
-    }
-  }, [mcpConfigText]);
 
   const handleMaxLLMCallChange = (value: string) => {
     setMaxLLMSteps(parseInt(value, 10));
   };
 
   const handleSave = async () => {
-    if (!parsedConfig) {
-      return;
-    }
-
     setIsSaving(true);
 
     try {
       await updateSettings({
-        mcpConfig: parsedConfig,
         maxLLMSteps,
       });
-      toast.success('MCP configuration saved');
-
+      toast.success('MCP settings saved');
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to save configuration');
-      toast.error('Failed to save MCP configuration');
+      setError(e instanceof Error ? e.message : 'Failed to save MCP settings');
+      toast.error('Failed to save MCP settings');
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handleLoadExample = () => {
-    setMCPConfigText(JSON.stringify(EXAMPLE_MCP_CONFIG, null, 2));
-    setError(null);
-  };
-
   const checkServerAvailability = async () => {
-    if (serverEntries.length === 0) {
-      return;
-    }
-
     setIsCheckingServers(true);
     setError(null);
 
@@ -125,10 +76,10 @@ export default function McpTab() {
     <div className="max-w-2xl mx-auto space-y-6">
       <section aria-labelledby="server-status-heading">
         <div className="flex justify-between items-center mb-3">
-          <h2 className="text-base font-medium text-bolt-elements-textPrimary">MCP Servers Configured</h2>{' '}
+          <h2 className="text-base font-medium text-bolt-elements-textPrimary">MCP Servers</h2>
           <button
             onClick={checkServerAvailability}
-            disabled={isCheckingServers || !parsedConfig || serverEntries.length === 0}
+            disabled={isCheckingServers}
             className={classNames(
               'px-3 py-1.5 rounded-lg text-sm',
               'bg-bolt-elements-background-depth-3 hover:bg-bolt-elements-background-depth-4',
@@ -146,37 +97,26 @@ export default function McpTab() {
             Check availability
           </button>
         </div>
-        <McpServerList
-          checkingServers={isCheckingServers}
-          expandedServer={expandedServer}
-          serverEntries={serverEntries}
-          toggleServerExpanded={toggleServerExpanded}
-        />
+
+        {serverEntries.length === 0 ? (
+          <p className="text-sm text-bolt-elements-textSecondary">
+            No MCP servers are currently available. Server configuration is managed by the administrator and cannot be
+            changed from this client.
+          </p>
+        ) : (
+          <McpServerList
+            checkingServers={isCheckingServers}
+            expandedServer={expandedServer}
+            serverEntries={serverEntries}
+            toggleServerExpanded={toggleServerExpanded}
+          />
+        )}
       </section>
 
       <section aria-labelledby="config-section-heading">
-        <h2 className="text-base font-medium text-bolt-elements-textPrimary mb-3">Configuration</h2>
+        <h2 className="text-base font-medium text-bolt-elements-textPrimary mb-3">Runtime settings</h2>
 
         <div className="space-y-4">
-          <div>
-            <label htmlFor="mcp-config" className="block text-sm text-bolt-elements-textSecondary mb-2">
-              Configuration JSON
-            </label>
-            <textarea
-              id="mcp-config"
-              value={mcpConfigText}
-              onChange={(e) => setMCPConfigText(e.target.value)}
-              className={classNames(
-                'w-full px-3 py-2 rounded-lg text-sm font-mono h-72',
-                'bg-[#F8F8F8] dark:bg-[#1A1A1A]',
-                'border',
-                error ? 'border-bolt-elements-icon-error' : 'border-[#E5E5E5] dark:border-[#333333]',
-                'text-bolt-elements-textPrimary',
-                'focus:outline-none focus:ring-1 focus:ring-bolt-elements-focus',
-              )}
-            />
-          </div>
-          <div>{error && <p className="mt-2 mb-2 text-sm text-bolt-elements-icon-error">{error}</p>}</div>
           <div>
             <label htmlFor="max-llm-steps" className="block text-sm text-bolt-elements-textSecondary mb-2">
               Maximum number of sequential LLM calls (steps)
@@ -193,46 +133,28 @@ export default function McpTab() {
             />
           </div>
           <div className="mt-2 text-sm text-bolt-elements-textSecondary">
-            The MCP configuration format is identical to the one used in Claude Desktop.
-            <a
-              href="https://modelcontextprotocol.io/examples"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-bolt-elements-link hover:underline inline-flex items-center gap-1"
-            >
-              View example servers
-              <div className="i-ph:arrow-square-out w-4 h-4" />
-            </a>
+            MCP server definitions are centrally managed by the service and cannot be edited from this interface.
+            Clients can only use servers that are present in the backend allowlist.
           </div>
+          {error && <p className="mt-2 text-sm text-bolt-elements-icon-error">{error}</p>}
         </div>
       </section>
 
-      <div className="flex flex-wrap justify-between gap-3 mt-6">
+      <div className="flex justify-end gap-3 mt-6">
         <button
-          onClick={handleLoadExample}
-          className="px-4 py-2 rounded-lg text-sm border border-bolt-elements-borderColor
-                    bg-bolt-elements-background-depth-2 text-bolt-elements-textSecondary
-                    hover:bg-bolt-elements-background-depth-3"
+          onClick={handleSave}
+          disabled={isSaving}
+          aria-disabled={isSaving}
+          className={classNames(
+            'px-4 py-2 rounded-lg text-sm flex items-center gap-2',
+            'bg-bolt-elements-item-backgroundAccent text-bolt-elements-item-contentAccent',
+            'hover:bg-bolt-elements-item-backgroundActive',
+            'disabled:opacity-50 disabled:cursor-not-allowed',
+          )}
         >
-          Load Example
+          <div className="i-ph:floppy-disk w-4 h-4" />
+          {isSaving ? 'Saving...' : 'Save Settings'}
         </button>
-
-        <div className="flex gap-2">
-          <button
-            onClick={handleSave}
-            disabled={isSaving || !parsedConfig}
-            aria-disabled={isSaving || !parsedConfig}
-            className={classNames(
-              'px-4 py-2 rounded-lg text-sm flex items-center gap-2',
-              'bg-bolt-elements-item-backgroundAccent text-bolt-elements-item-contentAccent',
-              'hover:bg-bolt-elements-item-backgroundActive',
-              'disabled:opacity-50 disabled:cursor-not-allowed',
-            )}
-          >
-            <div className="i-ph:floppy-disk w-4 h-4" />
-            {isSaving ? 'Saving...' : 'Save Configuration'}
-          </button>
-        </div>
       </div>
     </div>
   );
