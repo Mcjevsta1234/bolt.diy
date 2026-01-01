@@ -40,6 +40,41 @@ function parseCookies(cookieHeader: string): Record<string, string> {
 }
 
 async function chatAction({ context, request }: ActionFunctionArgs) {
+  // Require an authenticated, non-disabled user for chat access
+  const auth = await import('../../src/services/auth');
+  const env = auth.getAuthEnvFromContext(context);
+
+  try {
+    const result = await auth.getAppUserFromRequest(request, env);
+
+    if (!result) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (result.appUser.disabled) {
+      return new Response(JSON.stringify({ error: 'Account disabled' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+  } catch (error: any) {
+    if (error instanceof auth.AccountDisabledError || error?.name === 'AccountDisabledError') {
+      return new Response(JSON.stringify({ error: 'Account disabled' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    logger.error('Auth error in /api/chat', error);
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
   const streamRecovery = new StreamRecoveryManager({
     timeout: 45000,
     maxRetries: 2,

@@ -1,5 +1,6 @@
 import { useStore } from '@nanostores/react';
-import type { LinksFunction } from '@remix-run/cloudflare';
+import type { LinksFunction, LoaderFunctionArgs } from '@remix-run/cloudflare';
+import { json, redirect } from '@remix-run/cloudflare';
 import { Links, Meta, Outlet, Scripts, ScrollRestoration } from '@remix-run/react';
 import tailwindReset from '@unocss/reset/tailwind-compat.css?url';
 import { themeStore } from './lib/stores/theme';
@@ -60,6 +61,55 @@ const inlineThemeCode = stripIndents`
     document.querySelector('html')?.setAttribute('data-theme', theme);
   }
 `;
+
+// Global route guard – require authentication for the main app.
+export async function loader({ request, context }: LoaderFunctionArgs) {
+  const url = new URL(request.url);
+  const pathname = url.pathname;
+
+  // Public routes that do not require auth
+  if (
+    pathname === '/login' ||
+    pathname === '/register' ||
+    pathname === '/logout' ||
+    pathname === '/account-disabled' ||
+    pathname.startsWith('/api/')
+  ) {
+    return json({ user: null });
+  }
+
+  const { getAppUserFromRequest, getAuthEnvFromContext } = await import('../src/services/auth');
+
+  const env = getAuthEnvFromContext(context);
+
+  try {
+    const result = await getAppUserFromRequest(request, env, { allowDisabled: true });
+
+    if (!result) {
+      return redirect('/login');
+    }
+
+    if (result.appUser.disabled && pathname !== '/account-disabled') {
+      return redirect('/account-disabled');
+    }
+
+    return json({
+      user: {
+        id: result.appUser.id,
+        email: result.appUser.email,
+        role: result.appUser.role,
+        disabled: result.appUser.disabled,
+      },
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AccountDisabledError') {
+      return redirect('/account-disabled');
+    }
+
+    console.error('Root loader auth error', error);
+    return redirect('/login');
+  }
+}
 
 export const Head = createHead(() => (
   <>
