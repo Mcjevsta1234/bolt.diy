@@ -154,7 +154,7 @@ async function saveSnapshotAction({ request, context }: ActionFunctionArgs) {
   }
 
   try {
-    const body = await request.json().catch(() => ({}));
+    const body = await request.json().catch(() => ({})) as Record<string, any>;
 
     const projectId = typeof body.projectId === 'string' ? body.projectId : '';
     const files = (body.files ?? {}) as FileMap;

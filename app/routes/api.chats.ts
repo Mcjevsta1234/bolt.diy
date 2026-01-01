@@ -34,7 +34,7 @@ async function upsertChatAction({ request, context }: ActionFunctionArgs) {
   }
 
   try {
-    const body = await request.json().catch(() => ({}));
+    const body = await request.json().catch(() => ({})) as Record<string, any>;
 
     const chatId = typeof body.chatId === 'string' ? body.chatId : '';
     const projectId = typeof body.projectId === 'string' ? body.projectId : null;

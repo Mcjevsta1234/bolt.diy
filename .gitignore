@@ -46,3 +46,4 @@ docs/instructions/Roadmap.md
 .cursorrules
 *.md
 .qodo
+CLOUDFLARE_SECRETS.txt

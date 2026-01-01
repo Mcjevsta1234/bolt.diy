@@ -1,0 +1,11 @@
+# Cross-Origin Isolation Headers for WebContainers
+# These headers are REQUIRED for SharedArrayBuffer and WebContainers to work
+# See: https://web.dev/coop-coep/
+
+/*
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: credentialless
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  X-XSS-Protection: 1; mode=block
+  Referrer-Policy: strict-origin-when-cross-origin

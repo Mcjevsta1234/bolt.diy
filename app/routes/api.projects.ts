@@ -81,7 +81,7 @@ async function createProjectAction({ request, context }: ActionFunctionArgs) {
   }
 
   try {
-    const body = await request.json().catch(() => ({}));
+    const body = await request.json().catch(() => ({})) as Record<string, any>;
     const name = typeof body.name === 'string' ? body.name.trim() : '';
 
     if (!name) {

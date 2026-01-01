@@ -440,7 +440,7 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
               content = content.slice(0, content.length - 1);
             }
 
-            transformedChunk = `0:${content}\\n`;
+            transformedChunk = `0:${content}\n` as any;
           }
 
           // Convert the string stream to a byte stream

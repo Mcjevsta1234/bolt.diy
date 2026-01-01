@@ -186,9 +186,9 @@ export class RemoteStorageAdapter implements StorageAdapter {
     if (!expectedStatuses.includes(response.status)) {
       let message = `Remote storage request failed with status ${response.status}`;
       try {
-        const json = await response.json();
+        const json = await response.json() as { error?: string; message?: string };
         if (json?.error || json?.message) {
-          message = json.error || json.message;
+          message = json.error || json.message || message;
         }
       } catch {
         // ignore JSON parse errors
