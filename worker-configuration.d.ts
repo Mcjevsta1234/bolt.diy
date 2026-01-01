@@ -19,4 +19,15 @@ interface Env {
   XAI_API_KEY: string;
   PERPLEXITY_API_KEY: string;
   AWS_BEDROCK_CONFIG: string;
+
+  /**
+   * SaaS Supabase configuration for remote projects & chats persistence.
+   *
+   * These are intentionally separate from the user-facing Supabase integration
+   * (VITE_SUPABASE_*) that the AI agent uses when helping users with their own
+   * databases.
+   */
+  SAAS_SUPABASE_URL: string;
+  SAAS_SUPABASE_SERVICE_ROLE_KEY: string;
+  SAAS_SUPABASE_STORAGE_BUCKET: string;
 }
