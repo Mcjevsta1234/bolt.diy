@@ -1,20 +1,20 @@
 import { create } from 'zustand';
-import type { MCPConfig, MCPServerTools } from '~/lib/services/mcpService';
+import type { MCPServerTools } from '~/lib/services/mcpService';
 
 const MCP_SETTINGS_KEY = 'mcp_settings';
 const isBrowser = typeof window !== 'undefined';
 
 type MCPSettings = {
-  mcpConfig: MCPConfig;
+  /**
+   * Maximum number of sequential LLM steps when using MCP tools.
+   * This is a purely client-side preference and does not contain any server URLs.
+   */
   maxLLMSteps: number;
 };
 
-const defaultSettings = {
+const defaultSettings: MCPSettings = {
   maxLLMSteps: 5,
-  mcpConfig: {
-    mcpServers: {},
-  },
-} satisfies MCPSettings;
+};
 
 type Store = {
   isInitialized: boolean;
@@ -42,22 +42,39 @@ export const useMCPStore = create<Store & Actions>((set, get) => ({
     }
 
     if (isBrowser) {
-      const savedConfig = localStorage.getItem(MCP_SETTINGS_KEY);
+      const savedSettings = localStorage.getItem(MCP_SETTINGS_KEY);
 
-      if (savedConfig) {
+      if (savedSettings) {
         try {
-          const settings = JSON.parse(savedConfig) as MCPSettings;
-          const serverTools = await updateServerConfig(settings.mcpConfig);
-          set(() => ({ settings, serverTools }));
-        } catch (error) {
-          console.error('Error parsing saved mcp config:', error);
+          const parsed = JSON.parse(savedSettings) as Partial<MCPSettings>;
+
           set(() => ({
-            error: `Error parsing saved mcp config: ${error instanceof Error ? error.message : String(error)}`,
+            settings: {
+              maxLLMSteps:
+                typeof parsed.maxLLMSteps === 'number' && parsed.maxLLMSteps > 0
+                  ? parsed.maxLLMSteps
+                  : defaultSettings.maxLLMSteps,
+            },
+          }));
+        } catch (error) {
+          console.error('Error parsing saved MCP settings:', error);
+          set(() => ({
+            error: `Error parsing saved MCP settings: ${error instanceof Error ? error.message : String(error)}`,
           }));
         }
       } else {
         localStorage.setItem(MCP_SETTINGS_KEY, JSON.stringify(defaultSettings));
       }
+    }
+
+    // Try to load the current server status from the backend once on initialization.
+    try {
+      await get().checkServersAvailabilities();
+    } catch (error) {
+      // Surface the error but don't block initialization.
+      set(() => ({
+        error: error instanceof Error ? error.message : String(error),
+      }));
     }
 
     set(() => ({ isInitialized: true }));
@@ -70,15 +87,11 @@ export const useMCPStore = create<Store & Actions>((set, get) => ({
     try {
       set(() => ({ isUpdatingConfig: true }));
 
-      const serverTools = await updateServerConfig(newSettings.mcpConfig);
-
       if (isBrowser) {
         localStorage.setItem(MCP_SETTINGS_KEY, JSON.stringify(newSettings));
       }
 
-      set(() => ({ settings: newSettings, serverTools }));
-    } catch (error) {
-      throw error;
+      set(() => ({ settings: newSettings }));
     } finally {
       set(() => ({ isUpdatingConfig: false }));
     }
@@ -97,19 +110,3 @@ export const useMCPStore = create<Store & Actions>((set, get) => ({
     set(() => ({ serverTools }));
   },
 }));
-
-async function updateServerConfig(config: MCPConfig) {
-  const response = await fetch('/api/mcp-update-config', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(config),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Server responded with ${response.status}: ${response.statusText}`);
-  }
-
-  const data = (await response.json()) as MCPServerTools;
-
-  return data;
-}
