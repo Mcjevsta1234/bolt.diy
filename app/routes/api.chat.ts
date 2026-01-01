@@ -14,10 +14,7 @@ import { extractPropertiesFromMessage } from '~/lib/.server/llm/utils';
 import type { DesignScheme } from '~/types/design-scheme';
 import { MCPService } from '~/lib/services/mcpService';
 import { StreamRecoveryManager } from '~/lib/.server/llm/stream-recovery';
-
-export async function action(args: ActionFunctionArgs) {
-  return chatAction(args);
-}
+import { withSecurity } from '~/lib/security';
 
 const logger = createScopedLogger('api.chat');
 
@@ -263,7 +260,7 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
             processedMessages.push({
               id: generateId(),
               role: 'user',
-              content: `[Model: ${model}]\n\n[Provider: ${provider}]\n\n${CONTINUE_PROMPT}`,
+              content: `[Model: ${model}]\\n\\n[Provider: ${provider}]\\n\\n${CONTINUE_PROMPT}`,
             });
 
             const result = await streamText({
@@ -389,11 +386,11 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
 
           if (typeof chunk === 'string') {
             if (chunk.startsWith('g') && !lastChunk.startsWith('g')) {
-              controller.enqueue(encoder.encode(`0: "<div class=\\"__boltThought__\\">"\n`));
+              controller.enqueue(encoder.encode(`0: \"<div class=\\\\\"__boltThought__\\\\\">\"\\n`));
             }
 
             if (lastChunk.startsWith('g') && !chunk.startsWith('g')) {
-              controller.enqueue(encoder.encode(`0: "</div>\\n"\n`));
+              controller.enqueue(encoder.encode(`0: \"</div>\\\\n\"\\n`));
             }
           }
 
@@ -404,11 +401,11 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
           if (typeof chunk === 'string' && chunk.startsWith('g')) {
             let content = chunk.split(':').slice(1).join(':');
 
-            if (content.endsWith('\n')) {
+            if (content.endsWith('\\n')) {
               content = content.slice(0, content.length - 1);
             }
 
-            transformedChunk = `0:${content}\n`;
+            transformedChunk = `0:${content}\\n`;
           }
 
           // Convert the string stream to a byte stream
@@ -461,3 +458,11 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
     });
   }
 }
+
+export const action = withSecurity(chatAction, {
+  // We want a user context for authorization/feature gating, but we still
+  // allow anonymous users. The auth layer itself is cookie-based.
+  requireAuth: true,
+  rateLimit: true,
+  allowedMethods: ['POST'],
+});
